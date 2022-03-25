@@ -28,6 +28,7 @@ client.onopen = () => {
 
         switch(type) {
             case 'response-status-rooms':
+                console.log(msg.data)
                 services.updateStatusRooms(userContent, content, statusRooms);
                 break;
 

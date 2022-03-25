@@ -1,17 +1,13 @@
 import { WebSocketServer } from 'ws'
-import Services from './Domains/Services.js'
-import createRoom from './jobs/createRoom.js'
-
+import Services from './domains/Services.js'
+import Utils from './util/Utils.js'
 
 const WebSocketRuning = app => {
-    console.log(' --server-log: "WebSocketRuning Function is Started"');
-
     const server = new WebSocketServer({ server: app });
-    const rooms = createRoom(server, 3);
+    const rooms = Utils.createRoom(server, 3);
 
     // connection init
     server.on('connection', (ws, request) => {
-        console.log(' --server-log: "server-ws got a connection"');
 
         const services = new Services(ws, server);
 
@@ -22,17 +18,14 @@ const WebSocketRuning = app => {
 
             switch(type) {
                 case 'request-status-rooms':
-                    console.log('socket-msg: client | type: request-status-rooms ');
                     services.responseStatusRooms(rooms);
                     break;
                     
                 case 'request-register':
-                    console.log('socket-msg: client | type: request-register ');
                     services.requestRegister(request, content, rooms);
                     break;
                 
                 case 'user-msg-server':
-                    console.log('socket-msg: client | type: user-msg-server ');
                     services.userMsgServer(header, content, rooms);
                     break;
                 
@@ -48,11 +41,9 @@ const WebSocketRuning = app => {
                 const room = rooms.find(room => room.roomName === ws.header.roomName);
                 room.removeClienteToPlace(ws);
                 services.requestListMembers(rooms, ws.header.roomName);
-                console.log(`client ${ws.header.id} desconnected`);
             }
 
             services.responseStatusRooms(rooms);
-            console.log(`client ${request.headers['sec-websocket-key']} desconnected`);
         });
     });
 }

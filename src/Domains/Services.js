@@ -1,10 +1,14 @@
-import message from "../jobs/message.js";
 import ClientHeader from "./ClientHeader.js";
+import Chatbot from "../chatbot/config.js"
+import Register from "./Register.js";
+import Member from "./Member.js"
+import BaseService from "./BaseService.js";
+import Utils from '../util/Utils.js'
 
-export default class Services {
+export default class Services extends BaseService {
+    
     constructor(ws, server) {
-        this._ws = ws;
-        this._server = server;
+        super(ws, server)
     }
     
     responseStatusRooms(rooms) {
@@ -19,27 +23,24 @@ export default class Services {
             });
         });
 
-        //this._ws.send(message(header, content));
-
+        //Trocar para broadcast
         this._server.clients.forEach(client => {
-            if (!client.header) client.send(message(header, content));
+            if (client && !client.header) client.send(Utils.customMessage(header, content));
         });
-
-        console.log('socket-msg: server | type: response-status-rooms ');
     }
 
 
-    requestRegister(request, content, rooms) {
+    requestRegister({headers}, {nickname, roomName}, rooms) {
         this._ws.header = new ClientHeader(
-            request.headers['sec-websocket-key'],
-            content.nickname,
-            content.roomName
+            headers['sec-websocket-key'],
+            nickname,
+            roomName
         );
 
-        const room = rooms.find(room => room.roomName === content.roomName);
+        const room = this.findRoomByName(rooms, roomName);
         room.addClientToPlace(this._ws);
 
-        this._ws.header.color = room.colors[parseInt(Math.random() * (room.colors.length - 0) + 0)];
+        this._ws.header.color = this.changeRoomColor(room)
 
         const resContent = {
             accept: true,
@@ -47,51 +48,44 @@ export default class Services {
             color: this._ws.header.color
         }
 
-        this._ws.send(message({ type: 'response-register' }, resContent));
-        console.log('socket-msg: server | type: response-register ');
+        this._ws.send(Utils.customMessage({ type: 'response-register' }, resContent));
     }
 
     requestListMembers(rooms, roomName) {
         const members = [];
-        const room = rooms.find(room => room.roomName === roomName);
+        const room = this.findRoomByName(rooms, roomName);
+
         room.clients.forEach(client => {
             members.push({
                 nickname: client.header.nickname,
                 color: client.header.color
             });
         });
-
+        
         room.clients.forEach(client => {
-            client.send(message({ type:'response-list-members' }, { members }));
+            client.send(Utils.customMessage({ type:'response-list-members' }, { members}));
         })
     }
 
 
-    userMsgServer(header, content, rooms){
-        const idUserMsg = header.id;
-        const userMsgRoomName = header.roomName;
-        const userMsg = content.message;
-        const userMsgNickname = header.nickname;
-        
-        let wsUserMsg;
+    userMsgServer(header, {message}, rooms){
 
-        // Pegando o socket do usuario que enviou a msg
-        this._server.clients.forEach(client => {
-            if (this._server.clients.header) {
-                if (client.header.id === idUserMsg) wsUserMsg = client;
-            }
-        });
+        const {id, roomName, nickname} = header
+
+        /* Pegando o socket do usuario que enviou a msg
+            const wsUserMsg = this._server.clients.find(client => {
+                return this._server.clients.header ? client.header.id === idUserMsg ? client : null : null
+            })
+        */
 
         // Enviando a msg para os membros da Room "sala"
-        const room = rooms.find(room => room.roomName === userMsgRoomName);
-        room.clients.forEach(client => {
-            if (client.header.id != idUserMsg) {
-                header.type = 'user-msg-room'
-                client.send(message(header, { message: userMsg }));
-                
-                console.log('socket-msg: server | type: user-msg-room ');
-                console.log(`User ${idUserMsg} | ${userMsgNickname} - ${userMsgRoomName} send msg to room ${userMsgRoomName}`);
-            }
-        });
+        const room = this.findRoomByName(rooms, roomName);
+        
+        const clients = room.clients.filter(client => client.header.id != id)
+
+        header.type = 'user-msg-room'
+
+        clients.forEach(client => client ? client.send(Utils.customMessage(header, { message: message })) : null)
+        
     }
 }
